@@ -141,7 +141,8 @@ h1 {
   gap: 16px;
 }
 
-.auth-form label {
+.auth-form label,
+.management-card label {
   display: grid;
   gap: 8px;
   color: var(--foreground);
@@ -149,7 +150,8 @@ h1 {
   font-weight: 700;
 }
 
-.auth-form input {
+.auth-form input,
+.management-card input {
   min-height: 46px;
   width: 100%;
   border: 1px solid var(--border);
@@ -159,7 +161,8 @@ h1 {
   font: inherit;
 }
 
-.auth-form input:focus {
+.auth-form input:focus,
+.management-card input:focus {
   border-color: var(--accent);
   outline: 3px solid var(--accent-soft);
 }
@@ -214,6 +217,86 @@ h1 {
   line-height: 1.45;
 }
 
+.admin-panel {
+  display: grid;
+  gap: 18px;
+  padding-top: 8px;
+}
+
+.section-heading {
+  display: grid;
+  gap: 10px;
+}
+
+.section-heading h2 {
+  font-size: 1.4rem;
+}
+
+.section-heading p:not(.eyebrow),
+.empty-state {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.management-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.management-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.record-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.record-list span {
+  display: grid;
+  gap: 3px;
+}
+
+.record-list small {
+  color: var(--muted);
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #9a3412;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
 .panel h2 {
   font-size: 1.1rem;
 }
@@ -237,6 +320,10 @@ h1 {
   }
 
   .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 }

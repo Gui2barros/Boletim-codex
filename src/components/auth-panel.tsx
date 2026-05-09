@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { AdminPanel } from "@/components/admin-panel";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -169,6 +170,8 @@ export function AuthPanel() {
             <p>Permitir notas, faltas e observacoes por bimestre.</p>
           </article>
         </div>
+
+        {profile?.role === "admin" ? <AdminPanel supabase={supabase} /> : null}
 
         <button className="secondary-button" type="button" onClick={handleSignOut}>
           Sair
