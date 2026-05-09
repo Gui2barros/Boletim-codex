@@ -5,6 +5,10 @@ import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up";
+type UserProfile = {
+  full_name: string | null;
+  role: "admin" | "professor";
+};
 
 export function AuthPanel() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -13,6 +17,7 @@ export function AuthPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(() => Boolean(supabase));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +39,9 @@ export function AuthPanel() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       setSession(currentSession);
+      if (!currentSession) {
+        setProfile(null);
+      }
     });
 
     return () => {
@@ -41,6 +49,36 @@ export function AuthPanel() {
       subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || !session?.user) {
+      return;
+    }
+
+    let isMounted = true;
+
+    supabase
+      .from("profiles")
+      .select("full_name, role")
+      .eq("id", session.user.id)
+      .single()
+      .then(({ data, error }) => {
+        if (!isMounted) {
+          return;
+        }
+
+        if (error) {
+          setMessage("Nao foi possivel carregar o perfil deste usuario.");
+          return;
+        }
+
+        setProfile(data);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user, supabase]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,6 +117,7 @@ export function AuthPanel() {
 
     setMessage("");
     await supabase.auth.signOut();
+    setProfile(null);
     setPassword("");
   }
 
@@ -108,8 +147,8 @@ export function AuthPanel() {
           <p className="eyebrow">Acesso conectado</p>
           <h2 id="dashboard-title">Painel inicial</h2>
           <p>
-            Voce entrou como <strong>{session.user.email}</strong>. A proxima
-            etapa e criar perfis de administrador e professor.
+            Voce entrou como <strong>{profile?.full_name ?? session.user.email}</strong>.
+            {profile ? ` Perfil atual: ${profile.role}.` : " Carregando perfil..."}
           </p>
         </div>
 
