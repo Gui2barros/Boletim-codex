@@ -1,8 +1,9 @@
+import { AuthPanel } from "@/components/auth-panel";
+
 const nextSteps = [
-  "Configurar Supabase",
-  "Criar login de administradores e professores",
+  "Criar perfis de administrador e professor",
   "Cadastrar turmas, disciplinas e alunos",
-  "Lançar notas e frequência",
+  "Lancar notas e frequencia",
   "Gerar boletins em PDF"
 ];
 
@@ -11,15 +12,17 @@ export default function Home() {
     <main className="page-shell">
       <section className="intro">
         <p className="eyebrow">Boletim Codex</p>
-        <h1>Sistema web para notas, frequência e boletins escolares.</h1>
+        <h1>Sistema web para notas, frequencia e boletins escolares.</h1>
         <p className="summary">
-          Base inicial do projeto pronta para GitHub, Vercel e Supabase. A
-          próxima etapa é conectar autenticação e permissões.
+          Base online conectada ao GitHub, Vercel e Supabase. Agora estamos
+          validando o acesso dos usuarios antes de criar os cadastros.
         </p>
       </section>
 
+      <AuthPanel />
+
       <section className="panel" aria-labelledby="next-steps-title">
-        <h2 id="next-steps-title">Próximas etapas</h2>
+        <h2 id="next-steps-title">Proximas etapas</h2>
         <ol>
           {nextSteps.map((step) => (
             <li key={step}>{step}</li>

@@ -79,6 +79,141 @@ h1 {
   background: var(--surface);
 }
 
+.auth-panel {
+  display: grid;
+  gap: 22px;
+  margin-top: 28px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.auth-header {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-header h2 {
+  font-size: 1.6rem;
+}
+
+.auth-header p:not(.eyebrow),
+.form-message {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.auth-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f3f5f9;
+}
+
+.auth-toggle button,
+.primary-button,
+.secondary-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-toggle button {
+  background: transparent;
+  color: var(--muted);
+}
+
+.auth-toggle button.active {
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 4px rgb(23 32 51 / 0.12);
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.auth-form input {
+  min-height: 46px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--foreground);
+  font: inherit;
+}
+
+.auth-form input:focus {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent-soft);
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.secondary-button {
+  width: fit-content;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboard-grid article {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.dashboard-grid span {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.dashboard-grid h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dashboard-grid p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .panel h2 {
   font-size: 1.1rem;
 }
@@ -99,5 +234,9 @@ h1 {
 
   .intro {
     padding-top: 24px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
   }
 }
