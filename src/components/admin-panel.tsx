@@ -14,6 +14,43 @@ type SchoolClass = {
   school_year: number;
 };
 
+type ClassSubject = {
+  id: string;
+  class_id: string;
+  subject_id: string;
+  classes: {
+    name: string;
+    school_year: number;
+  } | null;
+  subjects: {
+    name: string;
+  } | null;
+};
+
+type ClassSubjectRow = {
+  id: string;
+  class_id: string;
+  subject_id: string;
+  classes:
+    | {
+        name: string;
+        school_year: number;
+      }
+    | Array<{
+        name: string;
+        school_year: number;
+      }>
+    | null;
+  subjects:
+    | {
+        name: string;
+      }
+    | Array<{
+        name: string;
+      }>
+    | null;
+};
+
 type AdminPanelProps = {
   supabase: SupabaseClient;
 };
@@ -22,9 +59,12 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
   const [subjectName, setSubjectName] = useState("");
   const [className, setClassName] = useState("");
   const [schoolYear, setSchoolYear] = useState(String(currentYear));
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,24 +74,28 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
 
     async function loadAdminData() {
       setIsLoading(true);
-      const [subjectsResult, classesResult] = await Promise.all([
+      const [subjectsResult, classesResult, classSubjectsResult] = await Promise.all([
         supabase.from("subjects").select("id, name").order("name"),
         supabase
           .from("classes")
           .select("id, name, school_year")
           .order("school_year", { ascending: false })
-          .order("name")
+          .order("name"),
+        supabase
+          .from("class_subjects")
+          .select("id, class_id, subject_id, classes(name, school_year), subjects(name)")
       ]);
 
       if (!isMounted) {
         return;
       }
 
-      if (subjectsResult.error || classesResult.error) {
+      if (subjectsResult.error || classesResult.error || classSubjectsResult.error) {
         setMessage("Nao foi possivel carregar os cadastros administrativos.");
       } else {
         setSubjects(subjectsResult.data ?? []);
         setClasses(classesResult.data ?? []);
+        setClassSubjects(normalizeClassSubjects(classSubjectsResult.data ?? []));
       }
 
       setIsLoading(false);
@@ -126,6 +170,37 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
       );
       setClassName("");
       setMessage("Turma cadastrada.");
+      if (!selectedClassId) {
+        setSelectedClassId(data.id);
+      }
+    }
+
+    setIsSaving(false);
+  }
+
+  async function handleLinkSubject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedClassId || !selectedSubjectId) {
+      setMessage("Selecione uma turma e uma disciplina.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("class_subjects")
+      .insert({ class_id: selectedClassId, subject_id: selectedSubjectId })
+      .select("id, class_id, subject_id, classes(name, school_year), subjects(name)")
+      .single();
+
+    if (error) {
+      setMessage("Nao foi possivel vincular. Talvez essa disciplina ja esteja na turma.");
+    } else if (data) {
+      setClassSubjects((current) => [...current, ...normalizeClassSubjects([data])]);
+      setSelectedSubjectId("");
+      setMessage("Disciplina vinculada a turma.");
     }
 
     setIsSaving(false);
@@ -141,6 +216,9 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
       setMessage("Nao foi possivel excluir. A disciplina pode estar vinculada a uma turma.");
     } else {
       setSubjects((current) => current.filter((subject) => subject.id !== subjectId));
+      setClassSubjects((current) =>
+        current.filter((classSubject) => classSubject.subject_id !== subjectId)
+      );
       setMessage("Disciplina removida.");
     }
 
@@ -157,11 +235,46 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
       setMessage("Nao foi possivel excluir. A turma pode ter disciplinas ou alunos vinculados.");
     } else {
       setClasses((current) => current.filter((schoolClass) => schoolClass.id !== classId));
+      setClassSubjects((current) =>
+        current.filter((classSubject) => classSubject.class_id !== classId)
+      );
+      if (selectedClassId === classId) {
+        setSelectedClassId("");
+      }
       setMessage("Turma removida.");
     }
 
     setIsSaving(false);
   }
+
+  async function handleDeleteClassSubject(classSubjectId: string) {
+    setIsSaving(true);
+    setMessage("");
+
+    const { error } = await supabase.from("class_subjects").delete().eq("id", classSubjectId);
+
+    if (error) {
+      setMessage("Nao foi possivel remover o vinculo.");
+    } else {
+      setClassSubjects((current) =>
+        current.filter((classSubject) => classSubject.id !== classSubjectId)
+      );
+      setMessage("Vinculo removido.");
+    }
+
+    setIsSaving(false);
+  }
+
+  const sortedClassSubjects = [...classSubjects].sort((left, right) => {
+    const leftClass = `${left.classes?.school_year ?? ""} ${left.classes?.name ?? ""}`;
+    const rightClass = `${right.classes?.school_year ?? ""} ${right.classes?.name ?? ""}`;
+
+    if (leftClass !== rightClass) {
+      return leftClass.localeCompare(rightClass);
+    }
+
+    return (left.subjects?.name ?? "").localeCompare(right.subjects?.name ?? "");
+  });
 
   return (
     <section className="admin-panel" aria-labelledby="admin-title">
@@ -232,9 +345,68 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         </form>
       </div>
 
+      <form className="management-card wide-card" onSubmit={handleLinkSubject}>
+        <h3>Disciplinas por turma</h3>
+        <div className="inline-form-grid">
+          <label>
+            Turma
+            <select
+              onChange={(event) => setSelectedClassId(event.target.value)}
+              value={selectedClassId}
+            >
+              <option value="">Selecione</option>
+              {classes.map((schoolClass) => (
+                <option key={schoolClass.id} value={schoolClass.id}>
+                  {schoolClass.name} - {schoolClass.school_year}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Disciplina
+            <select
+              onChange={(event) => setSelectedSubjectId(event.target.value)}
+              value={selectedSubjectId}
+            >
+              <option value="">Selecione</option>
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <button className="primary-button" disabled={isSaving} type="submit">
+          Vincular disciplina
+        </button>
+
+        <RecordList
+          emptyText={isLoading ? "Carregando..." : "Nenhum vinculo cadastrado."}
+          items={sortedClassSubjects.map((classSubject) => ({
+            id: classSubject.id,
+            title: `${classSubject.classes?.name ?? "Turma"} - ${
+              classSubject.subjects?.name ?? "Disciplina"
+            }`,
+            detail: String(classSubject.classes?.school_year ?? ""),
+            onDelete: () => handleDeleteClassSubject(classSubject.id)
+          }))}
+        />
+      </form>
+
       {message ? <p className="form-message">{message}</p> : null}
     </section>
   );
+}
+
+function normalizeClassSubjects(rows: ClassSubjectRow[]): ClassSubject[] {
+  return rows.map((row) => ({
+    ...row,
+    classes: Array.isArray(row.classes) ? (row.classes[0] ?? null) : row.classes,
+    subjects: Array.isArray(row.subjects) ? (row.subjects[0] ?? null) : row.subjects
+  }));
 }
 
 function RecordList({
