@@ -65,6 +65,9 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   const [schoolYear, setSchoolYear] = useState(String(currentYear));
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [sourceClassId, setSourceClassId] = useState("");
+  const [duplicateClassName, setDuplicateClassName] = useState("");
+  const [duplicateSchoolYear, setDuplicateSchoolYear] = useState(String(currentYear));
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -265,6 +268,81 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
     setIsSaving(false);
   }
 
+  async function handleDuplicateClass(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const name = duplicateClassName.trim();
+    const parsedYear = Number(duplicateSchoolYear);
+
+    if (!sourceClassId || !name || !Number.isInteger(parsedYear)) {
+      setMessage("Selecione uma turma origem, informe o novo nome e o ano letivo.");
+      return;
+    }
+
+    const sourceSubjects = classSubjects.filter(
+      (classSubject) => classSubject.class_id === sourceClassId
+    );
+
+    setIsSaving(true);
+    setMessage("");
+
+    const { data: newClass, error: classError } = await supabase
+      .from("classes")
+      .insert({ name, school_year: parsedYear })
+      .select("id, name, school_year")
+      .single();
+
+    if (classError || !newClass) {
+      setMessage("Nao foi possivel duplicar a turma. Verifique se o nome ja existe neste ano.");
+      setIsSaving(false);
+      return;
+    }
+
+    setClasses((current) =>
+      [...current, newClass].sort((left, right) => {
+        if (left.school_year !== right.school_year) {
+          return right.school_year - left.school_year;
+        }
+
+        return left.name.localeCompare(right.name);
+      })
+    );
+
+    if (sourceSubjects.length === 0) {
+      setDuplicateClassName("");
+      setSelectedClassId(newClass.id);
+      setSourceClassId("");
+      setMessage("Turma duplicada sem disciplinas, pois a origem nao tinha vinculos.");
+      setIsSaving(false);
+      return;
+    }
+
+    const { data: copiedLinks, error: linksError } = await supabase
+      .from("class_subjects")
+      .insert(
+        sourceSubjects.map((classSubject) => ({
+          class_id: newClass.id,
+          subject_id: classSubject.subject_id
+        }))
+      )
+      .select("id, class_id, subject_id, classes(name, school_year), subjects(name)");
+
+    if (linksError) {
+      setMessage("Turma criada, mas nao foi possivel copiar todas as disciplinas.");
+    } else {
+      setClassSubjects((current) => [
+        ...current,
+        ...normalizeClassSubjects(copiedLinks ?? [])
+      ]);
+      setDuplicateClassName("");
+      setSelectedClassId(newClass.id);
+      setSourceClassId("");
+      setMessage(`Turma duplicada com ${sourceSubjects.length} disciplina(s).`);
+    }
+
+    setIsSaving(false);
+  }
+
   const sortedClassSubjects = [...classSubjects].sort((left, right) => {
     const leftClass = `${left.classes?.school_year ?? ""} ${left.classes?.name ?? ""}`;
     const rightClass = `${right.classes?.school_year ?? ""} ${right.classes?.name ?? ""}`;
@@ -394,6 +472,51 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
             onDelete: () => handleDeleteClassSubject(classSubject.id)
           }))}
         />
+      </form>
+
+      <form className="management-card wide-card" onSubmit={handleDuplicateClass}>
+        <h3>Duplicar turma</h3>
+        <div className="inline-form-grid three-columns">
+          <label>
+            Turma origem
+            <select
+              onChange={(event) => setSourceClassId(event.target.value)}
+              value={sourceClassId}
+            >
+              <option value="">Selecione</option>
+              {classes.map((schoolClass) => (
+                <option key={schoolClass.id} value={schoolClass.id}>
+                  {schoolClass.name} - {schoolClass.school_year}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Nova turma
+            <input
+              onChange={(event) => setDuplicateClassName(event.target.value)}
+              placeholder="6o Ano B"
+              value={duplicateClassName}
+            />
+          </label>
+
+          <label>
+            Ano letivo
+            <input
+              inputMode="numeric"
+              max="2100"
+              min="2000"
+              onChange={(event) => setDuplicateSchoolYear(event.target.value)}
+              type="number"
+              value={duplicateSchoolYear}
+            />
+          </label>
+        </div>
+
+        <button className="primary-button" disabled={isSaving} type="submit">
+          Duplicar com disciplinas
+        </button>
       </form>
 
       {message ? <p className="form-message">{message}</p> : null}
