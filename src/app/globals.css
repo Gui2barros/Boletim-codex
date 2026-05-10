@@ -325,6 +325,22 @@ h1 {
   font-weight: 700;
 }
 
+.status-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.status-controls select {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+}
+
 .panel h2 {
   font-size: 1.1rem;
 }

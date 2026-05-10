@@ -13,6 +13,7 @@ type Enrollment = {
   id: string;
   class_id: string;
   entry_term: number;
+  exit_term: number | null;
   status: "active" | "transferred" | "evaded";
   students: {
     full_name: string;
@@ -58,7 +59,7 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
         supabase
           .from("enrollments")
           .select(
-            "id, class_id, entry_term, status, students(full_name, registration_code), classes(name, school_year)"
+            "id, class_id, entry_term, exit_term, status, students(full_name, registration_code), classes(name, school_year)"
           )
           .order("created_at", { ascending: false })
       ]);
@@ -128,7 +129,7 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
         status: "active"
       })
       .select(
-        "id, class_id, entry_term, status, students(full_name, registration_code), classes(name, school_year)"
+        "id, class_id, entry_term, exit_term, status, students(full_name, registration_code), classes(name, school_year)"
       )
       .single();
 
@@ -143,6 +144,48 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
       setRegistrationCode("");
       setEntryTerm("1");
       setMessage("Aluno cadastrado e matriculado.");
+    }
+
+    setIsSaving(false);
+  }
+
+  async function handleUpdateEnrollmentStatus(
+    enrollmentId: string,
+    status: Enrollment["status"],
+    exitTermValue: string
+  ) {
+    const parsedExitTerm = status === "active" ? null : Number(exitTermValue);
+
+    if (status !== "active" && !Number.isInteger(parsedExitTerm)) {
+      setMessage("Informe o bimestre de saida.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("enrollments")
+      .update({
+        status,
+        exit_term: parsedExitTerm
+      })
+      .eq("id", enrollmentId)
+      .select(
+        "id, class_id, entry_term, exit_term, status, students(full_name, registration_code), classes(name, school_year)"
+      )
+      .single();
+
+    if (error || !data) {
+      setMessage("Nao foi possivel atualizar a situacao do aluno.");
+    } else {
+      const [updatedEnrollment] = normalizeEnrollments([data]);
+      setEnrollments((current) =>
+        current.map((enrollment) =>
+          enrollment.id === enrollmentId ? updatedEnrollment : enrollment
+        )
+      );
+      setMessage("Situacao do aluno atualizada.");
     }
 
     setIsSaving(false);
@@ -223,7 +266,9 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
             id: enrollment.id,
             title: enrollment.students?.full_name ?? "Aluno",
             detail: `${enrollment.classes?.name ?? "Turma"} - entrada no ${enrollment.entry_term}o bimestre`,
-            status: enrollment.status
+            status: enrollment.status,
+            exitTerm: enrollment.exit_term,
+            onStatusChange: handleUpdateEnrollmentStatus
           }))}
         />
       </div>
@@ -250,7 +295,13 @@ function RecordList({
     id: string;
     title: string;
     detail: string;
-    status: string;
+    status: Enrollment["status"];
+    exitTerm: number | null;
+    onStatusChange: (
+      enrollmentId: string,
+      status: Enrollment["status"],
+      exitTermValue: string
+    ) => void;
   }>;
 }) {
   if (items.length === 0) {
@@ -265,7 +316,31 @@ function RecordList({
             <strong>{item.title}</strong>
             <small>{item.detail}</small>
           </span>
-          <small>{item.status}</small>
+          <span className="status-controls">
+            <select
+              value={item.status}
+              onChange={(event) =>
+                item.onStatusChange(item.id, event.target.value as Enrollment["status"], "4")
+              }
+            >
+              <option value="active">Ativo</option>
+              <option value="transferred">TR</option>
+              <option value="evaded">EV</option>
+            </select>
+            {item.status === "active" ? null : (
+              <select
+                value={String(item.exitTerm ?? 4)}
+                onChange={(event) =>
+                  item.onStatusChange(item.id, item.status, event.target.value)
+                }
+              >
+                <option value="1">1o bim.</option>
+                <option value="2">2o bim.</option>
+                <option value="3">3o bim.</option>
+                <option value="4">4o bim.</option>
+              </select>
+            )}
+          </span>
         </li>
       ))}
     </ul>
