@@ -325,6 +325,28 @@ h1 {
   font-weight: 700;
 }
 
+.text-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.small-action-button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.small-action-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .status-controls {
   display: flex;
   flex-wrap: wrap;

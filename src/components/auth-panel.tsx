@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AdminPanel } from "@/components/admin-panel";
 import { StudentsPanel } from "@/components/students-panel";
+import { TeacherRequestPanel } from "@/components/teacher-request-panel";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -173,6 +174,9 @@ export function AuthPanel() {
         </div>
 
         {profile?.role === "admin" ? <AdminPanel supabase={supabase} /> : null}
+        {profile?.role === "professor" ? (
+          <TeacherRequestPanel supabase={supabase} userId={session.user.id} />
+        ) : null}
         {profile ? <StudentsPanel supabase={supabase} /> : null}
 
         <button className="secondary-button" type="button" onClick={handleSignOut}>

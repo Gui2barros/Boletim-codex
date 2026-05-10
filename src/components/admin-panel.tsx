@@ -120,6 +120,22 @@ type TeacherAssignmentRow = Omit<TeacherAssignment, "profiles" | "class_subjects
     | null;
 };
 
+type AssignmentRequest = {
+  id: string;
+  teacher_id: string;
+  class_subject_id: string;
+  status: "pending" | "approved" | "rejected";
+  profiles: {
+    full_name: string | null;
+  } | null;
+  class_subjects: TeacherAssignment["class_subjects"];
+};
+
+type AssignmentRequestRow = Omit<AssignmentRequest, "profiles" | "class_subjects"> & {
+  profiles: TeacherAssignmentRow["profiles"];
+  class_subjects: TeacherAssignmentRow["class_subjects"];
+};
+
 type AdminPanelProps = {
   supabase: SupabaseClient;
 };
@@ -131,6 +147,7 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
   const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([]);
+  const [assignmentRequests, setAssignmentRequests] = useState<AssignmentRequest[]>([]);
   const [subjectName, setSubjectName] = useState("");
   const [className, setClassName] = useState("");
   const [schoolYear, setSchoolYear] = useState(String(currentYear));
@@ -155,7 +172,8 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         classesResult,
         classSubjectsResult,
         teachersResult,
-        teacherAssignmentsResult
+        teacherAssignmentsResult,
+        assignmentRequestsResult
       ] = await Promise.all([
         supabase.from("subjects").select("id, name").order("name"),
         supabase
@@ -175,6 +193,11 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
           .from("teacher_assignments")
           .select(
             "id, teacher_id, class_subject_id, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
+          ),
+        supabase
+          .from("teacher_assignment_requests")
+          .select(
+            "id, teacher_id, class_subject_id, status, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
           )
       ]);
 
@@ -187,7 +210,8 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         classesResult.error ||
         classSubjectsResult.error ||
         teachersResult.error ||
-        teacherAssignmentsResult.error
+        teacherAssignmentsResult.error ||
+        assignmentRequestsResult.error
       ) {
         setMessage("Nao foi possivel carregar os cadastros administrativos.");
       } else {
@@ -198,6 +222,7 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         setTeacherAssignments(
           normalizeTeacherAssignments(teacherAssignmentsResult.data ?? [])
         );
+        setAssignmentRequests(normalizeAssignmentRequests(assignmentRequestsResult.data ?? []));
       }
 
       setIsLoading(false);
@@ -499,6 +524,66 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
     setIsSaving(false);
   }
 
+  async function handleReviewAssignmentRequest(
+    request: AssignmentRequest,
+    status: "approved" | "rejected"
+  ) {
+    setIsSaving(true);
+    setMessage("");
+
+    if (status === "approved") {
+      const { data: assignment, error: assignmentError } = await supabase
+        .from("teacher_assignments")
+        .insert({
+          teacher_id: request.teacher_id,
+          class_subject_id: request.class_subject_id
+        })
+        .select(
+          "id, teacher_id, class_subject_id, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
+        )
+        .single();
+
+      if (assignmentError && assignmentError.code !== "23505") {
+        setMessage("Nao foi possivel criar o vinculo do professor.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (assignment) {
+        setTeacherAssignments((current) => [
+          ...current,
+          ...normalizeTeacherAssignments([assignment])
+        ]);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("teacher_assignment_requests")
+      .update({
+        status,
+        reviewed_at: new Date().toISOString()
+      })
+      .eq("id", request.id)
+      .select(
+        "id, teacher_id, class_subject_id, status, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
+      )
+      .single();
+
+    if (error || !data) {
+      setMessage("Nao foi possivel atualizar a solicitacao.");
+    } else {
+      const [updatedRequest] = normalizeAssignmentRequests([data]);
+      setAssignmentRequests((current) =>
+        current.map((currentRequest) =>
+          currentRequest.id === request.id ? updatedRequest : currentRequest
+        )
+      );
+      setMessage(status === "approved" ? "Solicitacao aprovada." : "Solicitacao recusada.");
+    }
+
+    setIsSaving(false);
+  }
+
   const sortedClassSubjects = [...classSubjects].sort((left, right) => {
     const leftClass = `${left.classes?.school_year ?? ""} ${left.classes?.name ?? ""}`;
     const rightClass = `${right.classes?.school_year ?? ""} ${right.classes?.name ?? ""}`;
@@ -533,6 +618,13 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
       (assignment) => `${assignment.teacher_id}:${assignment.class_subject_id}`
     )
   );
+  const sortedAssignmentRequests = [...assignmentRequests].sort((left, right) => {
+    if (left.status !== right.status) {
+      return left.status === "pending" ? -1 : 1;
+    }
+
+    return (left.profiles?.full_name ?? "").localeCompare(right.profiles?.full_name ?? "");
+  });
 
   return (
     <section className="admin-panel" aria-labelledby="admin-title">
@@ -786,6 +878,48 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         />
       </form>
 
+      <div className="management-card wide-card">
+        <h3>Solicitacoes de professores</h3>
+        {sortedAssignmentRequests.length === 0 ? (
+          <p className="empty-state">
+            {isLoading ? "Carregando..." : "Nenhuma solicitacao recebida."}
+          </p>
+        ) : (
+          <ul className="record-list">
+            {sortedAssignmentRequests.map((request) => (
+              <li key={request.id}>
+                <span>
+                  <strong>{request.profiles?.full_name ?? "Professor"}</strong>
+                  <small>
+                    {formatClassSubject(request.class_subjects)} - {formatRequestStatus(request.status)}
+                  </small>
+                </span>
+                {request.status === "pending" ? (
+                  <span className="status-controls">
+                    <button
+                      className="small-action-button"
+                      disabled={isSaving}
+                      type="button"
+                      onClick={() => handleReviewAssignmentRequest(request, "approved")}
+                    >
+                      Aprovar
+                    </button>
+                    <button
+                      className="text-button"
+                      disabled={isSaving}
+                      type="button"
+                      onClick={() => handleReviewAssignmentRequest(request, "rejected")}
+                    >
+                      Recusar
+                    </button>
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {message ? <p className="form-message">{message}</p> : null}
     </section>
   );
@@ -822,12 +956,47 @@ function normalizeTeacherAssignments(rows: TeacherAssignmentRow[]): TeacherAssig
   });
 }
 
+function normalizeAssignmentRequests(rows: AssignmentRequestRow[]): AssignmentRequest[] {
+  return rows.map((row) => {
+    const normalized = normalizeTeacherAssignments([
+      {
+        id: row.id,
+        teacher_id: row.teacher_id,
+        class_subject_id: row.class_subject_id,
+        profiles: row.profiles,
+        class_subjects: row.class_subjects
+      }
+    ])[0];
+
+    return {
+      id: row.id,
+      teacher_id: row.teacher_id,
+      class_subject_id: row.class_subject_id,
+      status: row.status,
+      profiles: normalized.profiles,
+      class_subjects: normalized.class_subjects
+    };
+  });
+}
+
 function formatClassSubject(classSubject: TeacherAssignment["class_subjects"]) {
   const className = classSubject?.classes?.name ?? "Turma";
   const subjectName = classSubject?.subjects?.name ?? "Disciplina";
   const schoolYear = classSubject?.classes?.school_year;
 
   return `${className} - ${subjectName}${schoolYear ? ` (${schoolYear})` : ""}`;
+}
+
+function formatRequestStatus(status: AssignmentRequest["status"]) {
+  if (status === "approved") {
+    return "aprovada";
+  }
+
+  if (status === "rejected") {
+    return "recusada";
+  }
+
+  return "pendente";
 }
 
 function RecordList({
