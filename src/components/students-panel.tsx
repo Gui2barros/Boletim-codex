@@ -31,10 +31,23 @@ type EnrollmentRow = Omit<Enrollment, "students" | "classes"> & {
 };
 
 type StudentsPanelProps = {
+  role: "admin" | "professor";
   supabase: SupabaseClient;
+  userId: string;
 };
 
-export function StudentsPanel({ supabase }: StudentsPanelProps) {
+type TeacherAssignmentClassRow = {
+  class_subjects:
+    | {
+        class_id: string;
+      }
+    | Array<{
+        class_id: string;
+      }>
+    | null;
+};
+
+export function StudentsPanel({ role, supabase, userId }: StudentsPanelProps) {
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [studentName, setStudentName] = useState("");
@@ -50,7 +63,7 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
 
     async function loadStudentsData() {
       setIsLoading(true);
-      const [classesResult, enrollmentsResult] = await Promise.all([
+      const [classesResult, enrollmentsResult, assignmentsResult] = await Promise.all([
         supabase
           .from("classes")
           .select("id, name, school_year")
@@ -61,17 +74,32 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
           .select(
             "id, class_id, entry_term, exit_term, status, students(full_name, registration_code), classes(name, school_year)"
           )
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        role === "professor"
+          ? supabase
+              .from("teacher_assignments")
+              .select("class_subjects(class_id)")
+              .eq("teacher_id", userId)
+          : Promise.resolve({ data: [], error: null })
       ]);
 
       if (!isMounted) {
         return;
       }
 
-      if (classesResult.error || enrollmentsResult.error) {
+      if (classesResult.error || enrollmentsResult.error || assignmentsResult.error) {
         setMessage("Nao foi possivel carregar alunos e matriculas.");
       } else {
-        const availableClasses = classesResult.data ?? [];
+        const allowedClassIds =
+          role === "professor"
+            ? new Set(normalizeTeacherClassIds(assignmentsResult.data ?? []))
+            : null;
+        const availableClasses =
+          role === "professor"
+            ? (classesResult.data ?? []).filter((schoolClass) =>
+                allowedClassIds?.has(schoolClass.id)
+              )
+            : (classesResult.data ?? []);
         setClasses(availableClasses);
         setEnrollments(normalizeEnrollments(enrollmentsResult.data ?? []));
         if (!selectedClassId && availableClasses[0]) {
@@ -87,7 +115,7 @@ export function StudentsPanel({ supabase }: StudentsPanelProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedClassId, supabase]);
+  }, [role, selectedClassId, supabase, userId]);
 
   async function handleCreateStudent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -284,6 +312,16 @@ function normalizeEnrollments(rows: EnrollmentRow[]): Enrollment[] {
     students: Array.isArray(row.students) ? (row.students[0] ?? null) : row.students,
     classes: Array.isArray(row.classes) ? (row.classes[0] ?? null) : row.classes
   }));
+}
+
+function normalizeTeacherClassIds(rows: TeacherAssignmentClassRow[]) {
+  return rows
+    .map((row) =>
+      Array.isArray(row.class_subjects)
+        ? row.class_subjects[0]?.class_id
+        : row.class_subjects?.class_id
+    )
+    .filter((classId): classId is string => Boolean(classId));
 }
 
 function RecordList({

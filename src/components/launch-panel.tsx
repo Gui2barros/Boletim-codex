@@ -45,10 +45,16 @@ type LaunchDraft = {
 };
 
 type LaunchPanelProps = {
+  role: "admin" | "professor";
   supabase: SupabaseClient;
+  userId: string;
 };
 
-export function LaunchPanel({ supabase }: LaunchPanelProps) {
+type TeacherAssignmentSubjectRow = {
+  class_subject_id: string;
+};
+
+export function LaunchPanel({ role, supabase, userId }: LaunchPanelProps) {
   const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [drafts, setDrafts] = useState<Record<string, LaunchDraft>>({});
@@ -68,20 +74,40 @@ export function LaunchPanel({ supabase }: LaunchPanelProps) {
 
     async function loadOptions() {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("class_subjects")
-        .select("id, class_id, classes(name, school_year), subjects(name)");
+      const [classSubjectsResult, assignmentsResult] = await Promise.all([
+        supabase
+          .from("class_subjects")
+          .select("id, class_id, classes(name, school_year), subjects(name)"),
+        role === "professor"
+          ? supabase
+              .from("teacher_assignments")
+              .select("class_subject_id")
+              .eq("teacher_id", userId)
+          : Promise.resolve({ data: [], error: null })
+      ]);
 
       if (!isMounted) {
         return;
       }
 
-      if (error) {
+      if (classSubjectsResult.error || assignmentsResult.error) {
         setMessage("Nao foi possivel carregar turmas e disciplinas.");
       } else {
-        const options = normalizeClassSubjects(data ?? []).sort((left, right) =>
-          formatClassSubject(left).localeCompare(formatClassSubject(right))
-        );
+        const allowedClassSubjectIds =
+          role === "professor"
+            ? new Set(
+                (assignmentsResult.data ?? []).map(
+                  (assignment: TeacherAssignmentSubjectRow) => assignment.class_subject_id
+                )
+              )
+            : null;
+        const options = normalizeClassSubjects(classSubjectsResult.data ?? [])
+          .filter((classSubject) =>
+            role === "professor" ? allowedClassSubjectIds?.has(classSubject.id) : true
+          )
+          .sort((left, right) =>
+            formatClassSubject(left).localeCompare(formatClassSubject(right))
+          );
         setClassSubjects(options);
         if (!selectedClassSubjectId && options[0]) {
           setSelectedClassSubjectId(options[0].id);
@@ -96,7 +122,7 @@ export function LaunchPanel({ supabase }: LaunchPanelProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedClassSubjectId, supabase]);
+  }, [role, selectedClassSubjectId, supabase, userId]);
 
   useEffect(() => {
     if (!selectedClassSubject) {

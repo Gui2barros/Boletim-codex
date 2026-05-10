@@ -178,8 +178,12 @@ export function AuthPanel() {
         {profile?.role === "professor" ? (
           <TeacherRequestPanel supabase={supabase} userId={session.user.id} />
         ) : null}
-        {profile ? <StudentsPanel supabase={supabase} /> : null}
-        {profile ? <LaunchPanel supabase={supabase} /> : null}
+        {profile ? (
+          <StudentsPanel role={profile.role} supabase={supabase} userId={session.user.id} />
+        ) : null}
+        {profile ? (
+          <LaunchPanel role={profile.role} supabase={supabase} userId={session.user.id} />
+        ) : null}
 
         <button className="secondary-button" type="button" onClick={handleSignOut}>
           Sair
