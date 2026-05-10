@@ -353,6 +353,13 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
 
     return (left.subjects?.name ?? "").localeCompare(right.subjects?.name ?? "");
   });
+  const selectedClass = classes.find((schoolClass) => schoolClass.id === selectedClassId);
+  const selectedClassSubjects = sortedClassSubjects.filter(
+    (classSubject) => classSubject.class_id === selectedClassId
+  );
+  const linkedSubjectIds = new Set(
+    selectedClassSubjects.map((classSubject) => classSubject.subject_id)
+  );
 
   return (
     <section className="admin-panel" aria-labelledby="admin-title">
@@ -425,6 +432,9 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
 
       <form className="management-card wide-card" onSubmit={handleLinkSubject}>
         <h3>Disciplinas por turma</h3>
+        <p className="helper-text">
+          Selecione uma turma para ver quais disciplinas estao vinculadas atualmente.
+        </p>
         <div className="inline-form-grid">
           <label>
             Turma
@@ -449,8 +459,13 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
             >
               <option value="">Selecione</option>
               {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
+                <option
+                  disabled={linkedSubjectIds.has(subject.id)}
+                  key={subject.id}
+                  value={subject.id}
+                >
                   {subject.name}
+                  {linkedSubjectIds.has(subject.id) ? " - ja vinculada" : ""}
                 </option>
               ))}
             </select>
@@ -462,13 +477,22 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         </button>
 
         <RecordList
-          emptyText={isLoading ? "Carregando..." : "Nenhum vinculo cadastrado."}
-          items={sortedClassSubjects.map((classSubject) => ({
+          emptyText={
+            isLoading
+              ? "Carregando..."
+              : selectedClassId
+                ? "Nenhuma disciplina vinculada a turma selecionada."
+                : "Selecione uma turma para ver as disciplinas."
+          }
+          heading={
+            selectedClass
+              ? `${selectedClass.name} - ${selectedClass.school_year}: ${selectedClassSubjects.length} disciplina(s)`
+              : undefined
+          }
+          items={selectedClassSubjects.map((classSubject) => ({
             id: classSubject.id,
-            title: `${classSubject.classes?.name ?? "Turma"} - ${
-              classSubject.subjects?.name ?? "Disciplina"
-            }`,
-            detail: String(classSubject.classes?.school_year ?? ""),
+            title: classSubject.subjects?.name ?? "Disciplina",
+            detail: "Vinculada a turma",
             onDelete: () => handleDeleteClassSubject(classSubject.id)
           }))}
         />
@@ -534,9 +558,11 @@ function normalizeClassSubjects(rows: ClassSubjectRow[]): ClassSubject[] {
 
 function RecordList({
   emptyText,
+  heading,
   items
 }: {
   emptyText: string;
+  heading?: string;
   items: Array<{
     id: string;
     title: string;
@@ -545,22 +571,30 @@ function RecordList({
   }>;
 }) {
   if (items.length === 0) {
-    return <p className="empty-state">{emptyText}</p>;
+    return (
+      <div className="record-list-block">
+        {heading ? <p className="list-heading">{heading}</p> : null}
+        <p className="empty-state">{emptyText}</p>
+      </div>
+    );
   }
 
   return (
-    <ul className="record-list">
-      {items.map((item) => (
-        <li key={item.id}>
-          <span>
-            <strong>{item.title}</strong>
-            <small>{item.detail}</small>
-          </span>
-          <button className="text-button" type="button" onClick={item.onDelete}>
-            Excluir
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="record-list-block">
+      {heading ? <p className="list-heading">{heading}</p> : null}
+      <ul className="record-list">
+        {items.map((item) => (
+          <li key={item.id}>
+            <span>
+              <strong>{item.title}</strong>
+              <small>{item.detail}</small>
+            </span>
+            <button className="text-button" type="button" onClick={item.onDelete}>
+              Excluir
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

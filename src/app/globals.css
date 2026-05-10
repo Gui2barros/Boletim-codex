@@ -235,7 +235,8 @@ h1 {
 }
 
 .section-heading p:not(.eyebrow),
-.empty-state {
+.empty-state,
+.helper-text {
   color: var(--muted);
   line-height: 1.5;
 }
@@ -281,6 +282,17 @@ h1 {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.record-list-block {
+  display: grid;
+  gap: 10px;
+}
+
+.list-heading {
+  color: var(--foreground);
+  font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .record-list li {
