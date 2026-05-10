@@ -363,6 +363,66 @@ h1 {
   font: inherit;
 }
 
+.launch-list {
+  display: grid;
+  gap: 10px;
+}
+
+.launch-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(110px, 1fr)) minmax(90px, 0.7fr);
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.launch-row label,
+.launch-student,
+.frequency-box {
+  display: grid;
+  gap: 6px;
+}
+
+.launch-row label {
+  color: var(--foreground);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.launch-row input {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--foreground);
+  font: inherit;
+}
+
+.launch-row input:disabled {
+  background: #eef1f6;
+  color: var(--muted);
+}
+
+.launch-student small,
+.frequency-box span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.frequency-box {
+  min-height: 40px;
+  align-content: center;
+  justify-items: end;
+}
+
+.special-row {
+  background: #f7f8fb;
+}
+
 .panel h2 {
   font-size: 1.1rem;
 }
@@ -395,5 +455,13 @@ h1 {
 
   .inline-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .launch-row {
+    grid-template-columns: 1fr;
+  }
+
+  .frequency-box {
+    justify-items: start;
   }
 }

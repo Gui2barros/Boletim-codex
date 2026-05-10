@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AdminPanel } from "@/components/admin-panel";
+import { LaunchPanel } from "@/components/launch-panel";
 import { StudentsPanel } from "@/components/students-panel";
 import { TeacherRequestPanel } from "@/components/teacher-request-panel";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -178,6 +179,7 @@ export function AuthPanel() {
           <TeacherRequestPanel supabase={supabase} userId={session.user.id} />
         ) : null}
         {profile ? <StudentsPanel supabase={supabase} /> : null}
+        {profile ? <LaunchPanel supabase={supabase} /> : null}
 
         <button className="secondary-button" type="button" onClick={handleSignOut}>
           Sair
