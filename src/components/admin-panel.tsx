@@ -51,6 +51,75 @@ type ClassSubjectRow = {
     | null;
 };
 
+type TeacherProfile = {
+  id: string;
+  full_name: string | null;
+};
+
+type TeacherAssignment = {
+  id: string;
+  teacher_id: string;
+  class_subject_id: string;
+  profiles: {
+    full_name: string | null;
+  } | null;
+  class_subjects: {
+    classes: {
+      name: string;
+      school_year: number;
+    } | null;
+    subjects: {
+      name: string;
+    } | null;
+  } | null;
+};
+
+type TeacherAssignmentRow = Omit<TeacherAssignment, "profiles" | "class_subjects"> & {
+  profiles: TeacherAssignment["profiles"] | TeacherAssignment["profiles"][];
+  class_subjects:
+    | {
+        classes:
+          | {
+              name: string;
+              school_year: number;
+            }
+          | Array<{
+              name: string;
+              school_year: number;
+            }>
+          | null;
+        subjects:
+          | {
+              name: string;
+            }
+          | Array<{
+              name: string;
+            }>
+          | null;
+      }
+    | Array<{
+        classes:
+          | {
+              name: string;
+              school_year: number;
+            }
+          | Array<{
+              name: string;
+              school_year: number;
+            }>
+          | null;
+        subjects:
+          | {
+              name: string;
+            }
+          | Array<{
+              name: string;
+            }>
+          | null;
+      }>
+    | null;
+};
+
 type AdminPanelProps = {
   supabase: SupabaseClient;
 };
@@ -60,6 +129,8 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
+  const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([]);
   const [subjectName, setSubjectName] = useState("");
   const [className, setClassName] = useState("");
   const [schoolYear, setSchoolYear] = useState(String(currentYear));
@@ -68,6 +139,8 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   const [sourceClassId, setSourceClassId] = useState("");
   const [duplicateClassName, setDuplicateClassName] = useState("");
   const [duplicateSchoolYear, setDuplicateSchoolYear] = useState(String(currentYear));
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [selectedAssignmentClassSubjectId, setSelectedAssignmentClassSubjectId] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -77,7 +150,13 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
 
     async function loadAdminData() {
       setIsLoading(true);
-      const [subjectsResult, classesResult, classSubjectsResult] = await Promise.all([
+      const [
+        subjectsResult,
+        classesResult,
+        classSubjectsResult,
+        teachersResult,
+        teacherAssignmentsResult
+      ] = await Promise.all([
         supabase.from("subjects").select("id, name").order("name"),
         supabase
           .from("classes")
@@ -86,19 +165,39 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
           .order("name"),
         supabase
           .from("class_subjects")
-          .select("id, class_id, subject_id, classes(name, school_year), subjects(name)")
+          .select("id, class_id, subject_id, classes(name, school_year), subjects(name)"),
+        supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("role", "professor")
+          .order("full_name"),
+        supabase
+          .from("teacher_assignments")
+          .select(
+            "id, teacher_id, class_subject_id, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
+          )
       ]);
 
       if (!isMounted) {
         return;
       }
 
-      if (subjectsResult.error || classesResult.error || classSubjectsResult.error) {
+      if (
+        subjectsResult.error ||
+        classesResult.error ||
+        classSubjectsResult.error ||
+        teachersResult.error ||
+        teacherAssignmentsResult.error
+      ) {
         setMessage("Nao foi possivel carregar os cadastros administrativos.");
       } else {
         setSubjects(subjectsResult.data ?? []);
         setClasses(classesResult.data ?? []);
         setClassSubjects(normalizeClassSubjects(classSubjectsResult.data ?? []));
+        setTeachers(teachersResult.data ?? []);
+        setTeacherAssignments(
+          normalizeTeacherAssignments(teacherAssignmentsResult.data ?? [])
+        );
       }
 
       setIsLoading(false);
@@ -343,6 +442,63 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
     setIsSaving(false);
   }
 
+  async function handleAssignTeacher(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedTeacherId || !selectedAssignmentClassSubjectId) {
+      setMessage("Selecione um professor e uma turma/disciplina.");
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("teacher_assignments")
+      .insert({
+        teacher_id: selectedTeacherId,
+        class_subject_id: selectedAssignmentClassSubjectId
+      })
+      .select(
+        "id, teacher_id, class_subject_id, profiles(full_name), class_subjects(classes(name, school_year), subjects(name))"
+      )
+      .single();
+
+    if (error) {
+      setMessage("Nao foi possivel vincular. Talvez esse professor ja tenha esse vinculo.");
+    } else if (data) {
+      setTeacherAssignments((current) => [
+        ...current,
+        ...normalizeTeacherAssignments([data])
+      ]);
+      setSelectedAssignmentClassSubjectId("");
+      setMessage("Professor vinculado.");
+    }
+
+    setIsSaving(false);
+  }
+
+  async function handleDeleteTeacherAssignment(assignmentId: string) {
+    setIsSaving(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("teacher_assignments")
+      .delete()
+      .eq("id", assignmentId);
+
+    if (error) {
+      setMessage("Nao foi possivel remover o vinculo do professor.");
+    } else {
+      setTeacherAssignments((current) =>
+        current.filter((assignment) => assignment.id !== assignmentId)
+      );
+      setMessage("Vinculo do professor removido.");
+    }
+
+    setIsSaving(false);
+  }
+
   const sortedClassSubjects = [...classSubjects].sort((left, right) => {
     const leftClass = `${left.classes?.school_year ?? ""} ${left.classes?.name ?? ""}`;
     const rightClass = `${right.classes?.school_year ?? ""} ${right.classes?.name ?? ""}`;
@@ -359,6 +515,23 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
   );
   const linkedSubjectIds = new Set(
     selectedClassSubjects.map((classSubject) => classSubject.subject_id)
+  );
+  const sortedTeacherAssignments = [...teacherAssignments].sort((left, right) => {
+    const leftTeacher = left.profiles?.full_name ?? "";
+    const rightTeacher = right.profiles?.full_name ?? "";
+
+    if (leftTeacher !== rightTeacher) {
+      return leftTeacher.localeCompare(rightTeacher);
+    }
+
+    return formatClassSubject(left.class_subjects).localeCompare(
+      formatClassSubject(right.class_subjects)
+    );
+  });
+  const teacherAssignmentIds = new Set(
+    teacherAssignments.map(
+      (assignment) => `${assignment.teacher_id}:${assignment.class_subject_id}`
+    )
   );
 
   return (
@@ -543,6 +716,76 @@ export function AdminPanel({ supabase }: AdminPanelProps) {
         </button>
       </form>
 
+      <form className="management-card wide-card" onSubmit={handleAssignTeacher}>
+        <h3>Professores por turma/disciplina</h3>
+        <p className="helper-text">
+          O professor passa a acessar os alunos e lancamentos das turmas vinculadas aqui.
+        </p>
+
+        <div className="inline-form-grid">
+          <label>
+            Professor
+            <select
+              onChange={(event) => setSelectedTeacherId(event.target.value)}
+              value={selectedTeacherId}
+            >
+              <option value="">Selecione</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.full_name ?? teacher.id}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Turma e disciplina
+            <select
+              onChange={(event) => setSelectedAssignmentClassSubjectId(event.target.value)}
+              value={selectedAssignmentClassSubjectId}
+            >
+              <option value="">Selecione</option>
+              {sortedClassSubjects.map((classSubject) => {
+                const isLinked = teacherAssignmentIds.has(
+                  `${selectedTeacherId}:${classSubject.id}`
+                );
+
+                return (
+                  <option disabled={isLinked} key={classSubject.id} value={classSubject.id}>
+                    {classSubject.classes?.name ?? "Turma"} -{" "}
+                    {classSubject.subjects?.name ?? "Disciplina"}
+                    {classSubject.classes?.school_year
+                      ? ` (${classSubject.classes.school_year})`
+                      : ""}
+                    {isLinked ? " - ja vinculado" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        </div>
+
+        <button className="primary-button" disabled={isSaving} type="submit">
+          Vincular professor
+        </button>
+
+        <RecordList
+          emptyText={
+            isLoading
+              ? "Carregando..."
+              : teachers.length === 0
+                ? "Nenhum professor cadastrado ainda."
+                : "Nenhum vinculo de professor cadastrado."
+          }
+          items={sortedTeacherAssignments.map((assignment) => ({
+            id: assignment.id,
+            title: assignment.profiles?.full_name ?? "Professor",
+            detail: formatClassSubject(assignment.class_subjects),
+            onDelete: () => handleDeleteTeacherAssignment(assignment.id)
+          }))}
+        />
+      </form>
+
       {message ? <p className="form-message">{message}</p> : null}
     </section>
   );
@@ -554,6 +797,37 @@ function normalizeClassSubjects(rows: ClassSubjectRow[]): ClassSubject[] {
     classes: Array.isArray(row.classes) ? (row.classes[0] ?? null) : row.classes,
     subjects: Array.isArray(row.subjects) ? (row.subjects[0] ?? null) : row.subjects
   }));
+}
+
+function normalizeTeacherAssignments(rows: TeacherAssignmentRow[]): TeacherAssignment[] {
+  return rows.map((row) => {
+    const classSubject = Array.isArray(row.class_subjects)
+      ? (row.class_subjects[0] ?? null)
+      : row.class_subjects;
+
+    return {
+      ...row,
+      profiles: Array.isArray(row.profiles) ? (row.profiles[0] ?? null) : row.profiles,
+      class_subjects: classSubject
+        ? {
+            classes: Array.isArray(classSubject.classes)
+              ? (classSubject.classes[0] ?? null)
+              : classSubject.classes,
+            subjects: Array.isArray(classSubject.subjects)
+              ? (classSubject.subjects[0] ?? null)
+              : classSubject.subjects
+          }
+        : null
+    };
+  });
+}
+
+function formatClassSubject(classSubject: TeacherAssignment["class_subjects"]) {
+  const className = classSubject?.classes?.name ?? "Turma";
+  const subjectName = classSubject?.subjects?.name ?? "Disciplina";
+  const schoolYear = classSubject?.classes?.school_year;
+
+  return `${className} - ${subjectName}${schoolYear ? ` (${schoolYear})` : ""}`;
 }
 
 function RecordList({
